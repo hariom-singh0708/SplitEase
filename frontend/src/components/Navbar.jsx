@@ -1,11 +1,24 @@
 import { Link, NavLink, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import {
+  Wallet,
+  Send,
+  Users,
+  LogOut,
+  LogIn,
+  UserPlus,
+  User,
+  Menu,
+  X,
+  ShieldCheck,
+} from "lucide-react";
 
 export default function Navbar() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [expanded, setExpanded] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
 
   const handleLogout = async () => {
     await logout();
@@ -13,16 +26,34 @@ export default function Navbar() {
     navigate("/login");
   };
 
+  // Detect scroll for dynamic navbar
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 20);
+    window.addEventListener("scroll", onScroll);
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
   return (
-    <nav className="navbar navbar-expand-lg navbar-dark bg-dark shadow-sm sticky-top px-3">
-      <div className="container-fluid">
+    <nav
+      className={`navbar navbar-expand-lg navbar-dark fixed-top shadow-sm transition-all ${
+        scrolled ? "bg-dark bg-opacity-75 backdrop-blur" : "bg-transparent"
+      }`}
+      style={{
+        backdropFilter: "blur(10px)",
+        transition: "0.4s ease",
+      }}
+    >
+      <div className="container-fluid px-3">
         {/* Brand */}
         <Link
-          className="navbar-brand fw-bold text-light fs-4"
+          className="navbar-brand fw-bold text-light fs-4 d-flex align-items-center gap-2"
           to="/"
           onClick={() => setExpanded(false)}
+          style={{
+            textShadow: "0 0 6px rgba(255,255,255,0.5)",
+          }}
         >
-          💸 SplitEase
+          💸 <span className="fw-bolder">SplitEase</span>
         </Link>
 
         {/* Toggler */}
@@ -31,84 +62,109 @@ export default function Navbar() {
           type="button"
           onClick={() => setExpanded(!expanded)}
         >
-          <span className="navbar-toggler-icon"></span>
+          {expanded ? (
+            <X className="text-white" />
+          ) : (
+            <Menu className="text-white" />
+          )}
         </button>
 
-        {/* Collapsible Menu */}
-        <div className={`collapse navbar-collapse ${expanded ? "show" : ""}`}>
+        {/* Menu */}
+        <div
+          className={`collapse navbar-collapse ${
+            expanded ? "show animate__animated animate__fadeInDown" : ""
+          }`}
+        >
           {user && (
-            <ul className="navbar-nav me-auto mb-2 mb-lg-0">
+            <ul className="navbar-nav me-auto mb-2 mb-lg-0 mt-2 mt-lg-0">
               <li className="nav-item">
                 <NavLink
-                  className="nav-link"
+                  className={({ isActive }) =>
+                    `nav-link d-flex align-items-center gap-2 fw-semibold ${
+                      isActive ? "text-info" : "text-light opacity-75"
+                    }`
+                  }
                   to="/take"
                   onClick={() => setExpanded(false)}
                 >
-                  💰 Take Money
+                  <Wallet size={18} /> Take Money
                 </NavLink>
               </li>
               <li className="nav-item">
                 <NavLink
-                  className="nav-link"
+                  className={({ isActive }) =>
+                    `nav-link d-flex align-items-center gap-2 fw-semibold ${
+                      isActive ? "text-info" : "text-light opacity-75"
+                    }`
+                  }
                   to="/give"
                   onClick={() => setExpanded(false)}
                 >
-                  💸 Give Money
+                  <Send size={18} /> Give Money
                 </NavLink>
               </li>
               <li className="nav-item">
                 <NavLink
-                  className="nav-link"
+                  className={({ isActive }) =>
+                    `nav-link d-flex align-items-center gap-2 fw-semibold ${
+                      isActive ? "text-info" : "text-light opacity-75"
+                    }`
+                  }
                   to="/groups"
                   onClick={() => setExpanded(false)}
                 >
-                  👥 Groups
+                  <Users size={18} /> Groups
                 </NavLink>
               </li>
             </ul>
           )}
 
           {/* Right Side */}
-          <div className="d-flex align-items-center ms-auto">
+          <div className="d-flex align-items-center ms-auto mt-3 mt-lg-0 gap-2">
             {user ? (
               <>
-                {/* Profile Name */}
+                {/* Profile Button */}
                 <button
-                  className="btn btn-link text-light text-decoration-none fw-semibold me-3"
+                  className="btn btn-outline-light fw-semibold d-flex align-items-center gap-2 px-3 py-1 rounded-pill shadow-sm"
                   onClick={() => {
                     navigate("/profile");
                     setExpanded(false);
                   }}
                   style={{
-                    cursor: "pointer",
                     transition: "0.3s",
+                    borderColor: "rgba(255,255,255,0.4)",
                   }}
                 >
-                  {user.name}
+                  <User size={18} />
+                  <span>{user.name}</span>
                 </button>
 
-                {/* Logout Button */}
+                {/* Logout */}
                 <button
                   onClick={handleLogout}
-                  className="btn btn-outline-light btn-sm fw-semibold"
+                  className="btn btn-danger text-white fw-semibold d-flex align-items-center gap-1 px-3 py-1 rounded-pill shadow-sm"
+                  style={{ transition: "0.3s" }}
                 >
+                  <LogOut size={18} />
                   Logout
                 </button>
               </>
             ) : (
               <>
                 <Link
-                  className="btn btn-outline-light btn-sm me-2 fw-semibold"
+                  className="btn btn-outline-light fw-semibold d-flex align-items-center gap-2 px-3 py-1 rounded-pill"
                   to="/login"
                   onClick={() => setExpanded(false)}
                 >
+                  <LogIn size={18} />
                   Login
                 </Link>
                 <Link
-                  className="btn btn-info text-white btn-sm fw-semibold"
+                  className="btn btn-info text-white fw-semibold d-flex align-items-center gap-2 px-3 py-1 rounded-pill"
                   to="/register"
                   onClick={() => setExpanded(false)}
                 >
+                  <UserPlus size={18} />
                   Register
                 </Link>
               </>
