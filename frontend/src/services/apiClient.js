@@ -1,6 +1,10 @@
 import axios from "axios";
 
-const baseURL = "https://splitease-8iiu.onrender.com/api";
+// Dynamically switch between local & production URLs
+const baseURL =
+  import.meta.env.MODE === "development"
+    ? "http://localhost:5000/api" // your local Express backend
+    : "https://splitease-8iiu.onrender.com/api"; // Render backend
 
 const api = axios.create({
   baseURL,

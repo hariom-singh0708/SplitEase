@@ -5,6 +5,7 @@ import {
   getGroupExpenses,
   addExpense,
   getSettlement,
+  deleteGroup,
 } from "../services/groupService";
 import api from "../services/apiClient";
 
@@ -69,14 +70,36 @@ export default function GroupExpenses() {
     if (!groupForm.name) return alert("Please enter a group name.");
     if (addedMembers.length === 0) return alert("Add at least one member.");
 
-    const memberIds = addedMembers.map((m) => m._id);
-    await createGroup({ name: groupForm.name, membersIdentifiers: memberIds });
+    const memberIdentifiers = addedMembers.map((m) => m.email || m.mobile);
+
+    await createGroup({
+      name: groupForm.name,
+      membersIdentifiers: memberIdentifiers,
+    });
+
 
     setGroupForm({ name: "", newMember: "" });
     setAddedMembers([]);
     setMemberStatus("");
     fetchGroups();
   };
+
+  const handleDeleteGroup = async (groupId) => {
+    if (!window.confirm("Are you sure you want to delete this group?")) return;
+    try {
+      await deleteGroup(groupId);
+      setGroups(groups.filter((g) => g._id !== groupId));
+    } catch (err) {
+      if (err.response?.status === 403) {
+        alert("❌ You are not allowed to delete this group.");
+      } else {
+        alert("⚠️ Something went wrong while deleting.");
+      }
+      console.error("❌ Error deleting group:", err);
+    }
+  };
+
+
 
   const loadGroup = async (group) => {
     setSelectedGroup(group);
@@ -127,7 +150,7 @@ export default function GroupExpenses() {
 
   return (
     <div
-      className="container py-4"
+      className="container py-5"
       style={{ minHeight: "100vh", background: "#f8fafc" }}
     >
       <h2 className="fw-bold text-center mb-4 text-primary">
@@ -135,33 +158,62 @@ export default function GroupExpenses() {
       </h2>
 
       {/* Create Group Section */}
-      <div className="card border-0 shadow-lg p-4 rounded-4 mb-5 bg-white">
-        <h5 className="fw-bold text-secondary mb-3">
-          ➕ Create a New Group
-        </h5>
-        <form onSubmit={handleCreateGroup} className="row g-3 align-items-end">
+      {/* 🧩 Create Group Section */}
+      <div
+        className="card border-0 shadow-lg p-4 rounded-4 mb-5"
+        style={{
+          background: "linear-gradient(135deg, #f8fbff, #ffffff)",
+          backdropFilter: "blur(10px)",
+        }}
+      >
+        <h4 className="fw-bold text-primary mb-4 d-flex align-items-center gap-2">
+          <i className="bi bi-people-fill fs-4"></i> Create a New Group
+        </h4>
+
+        <form
+          onSubmit={handleCreateGroup}
+          className="row g-3 align-items-end justify-content-center"
+        >
+          {/* Group Name */}
           <div className="col-md-4">
-            <label className="form-label fw-semibold">Group Name</label>
-            <input
-              type="text"
-              className="form-control"
-              placeholder="Enter group name"
-              value={groupForm.name}
-              onChange={(e) =>
-                setGroupForm({ ...groupForm, name: e.target.value })
-              }
-              required
-            />
+            <label className="form-label fw-semibold text-secondary">
+              Group Name
+            </label>
+            <div className="input-group">
+              <span className="input-group-text bg-white border-end-0">
+                <i className="bi bi-chat-dots text-primary"></i>
+              </span>
+              <input
+                type="text"
+                className="form-control border-start-0"
+                placeholder="e.g. Goa Trip, Roommates"
+                value={groupForm.name}
+                onChange={(e) =>
+                  setGroupForm({ ...groupForm, name: e.target.value })
+                }
+                required
+              />
+            </div>
           </div>
+
+          {/* Add Member Field */}
           <div className="col-md-5">
-            <label className="form-label fw-semibold">
+            <label className="form-label fw-semibold text-secondary">
               Add Member (Email or Phone)
             </label>
             <div className="input-group">
+              <span className="input-group-text bg-white border-end-0">
+                <i
+                  className={`bi ${groupForm.newMember.includes("@")
+                    ? "bi-envelope text-info"
+                    : "bi-telephone text-success"
+                    }`}
+                ></i>
+              </span>
               <input
                 type="text"
-                className="form-control"
-                placeholder="Enter member email or phone"
+                className="form-control border-start-0"
+                placeholder="Enter email or phone number"
                 value={groupForm.newMember}
                 onChange={(e) =>
                   setGroupForm({ ...groupForm, newMember: e.target.value })
@@ -169,60 +221,154 @@ export default function GroupExpenses() {
               />
               <button
                 type="button"
-                className="btn btn-outline-primary fw-bold"
+                className="btn btn-outline-primary fw-bold d-flex align-items-center gap-1"
                 onClick={handleAddMember}
                 disabled={!groupForm.newMember}
               >
-                Add
+                <i className="bi bi-person-plus-fill"></i> Add
               </button>
             </div>
+
+            {/* Member Add Status */}
             {memberStatus && (
               <small
-                className={`mt-1 d-block ${memberStatus.includes("❌") || memberStatus.includes("⚠️")
-                    ? "text-danger"
-                    : "text-success"
+                className={`mt-2 d-block fw-semibold ${memberStatus.includes("❌") || memberStatus.includes("⚠️")
+                  ? "text-danger"
+                  : "text-success"
                   }`}
               >
                 {memberStatus}
               </small>
             )}
           </div>
+
+          {/* Create Button */}
           <div className="col-md-3 d-grid">
-            <button className="btn btn-info text-white fw-bold shadow-sm">
-              Create Group
+            <button
+              className="btn btn-info text-white fw-semibold shadow-sm d-flex align-items-center justify-content-center gap-2 rounded-pill"
+              type="submit"
+            >
+              <i className="bi bi-check-circle-fill"></i> Create Group
             </button>
           </div>
         </form>
+
+        {/* Members Added Display */}
+        {addedMembers.length > 0 && (
+          <div className="mt-4">
+            <h6 className="fw-bold text-secondary mb-2 d-flex align-items-center gap-1">
+              <i className="bi bi-person-lines-fill text-info"></i> Members Added
+            </h6>
+            <div className="d-flex flex-wrap gap-2">
+              {addedMembers.map((m, i) => (
+                <div
+                  key={i}
+                  className="badge bg-light border border-info text-dark rounded-pill px-3 py-2 d-flex align-items-center gap-2 shadow-sm"
+                  style={{
+                    transition: "0.2s",
+                  }}
+                >
+                  <div
+                    className="rounded-circle bg-info text-white d-flex align-items-center justify-content-center"
+                    style={{ width: 28, height: 28, fontSize: "0.8rem" }}
+                  >
+                    {m.name[0].toUpperCase()}
+                  </div>
+                  <span className="fw-semibold">{m.name}</span>
+                  <button
+                    type="button"
+                    className="btn btn-sm btn-outline-danger border-0 py-0 px-1"
+                    onClick={() => handleRemoveMember(i)}
+                    title="Remove member"
+                  >
+                    <i className="bi bi-x-circle-fill"></i>
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* Groups List */}
-      <h5 className="fw-bold mb-3 text-secondary">Your Groups</h5>
+
+      {/* 🧩 Groups List */}
+      <h5 className="fw-bold mb-3 text-secondary d-flex align-items-center gap-2">
+        <i className="bi bi-people-fill text-info"></i> Your Groups
+      </h5>
+
       <div className="row g-4">
         {groups.length === 0 ? (
-          <p className="text-muted text-center">No groups yet. Create one above!</p>
+          <p className="text-muted text-center">
+            No groups yet. Create one above!
+          </p>
         ) : (
           groups.map((g) => (
             <div key={g._id} className="col-md-4">
               <div
-                className={`card shadow-sm border-0 rounded-4 text-center p-4 h-100 ${selectedGroup?._id === g._id ? "border-primary border-3" : ""
+                className={`card border-0 rounded-4 p-4 shadow-sm position-relative h-100 ${selectedGroup?._id === g._id ? "border-primary border-3" : ""
                   }`}
                 style={{
+                  transition: "transform 0.25s ease, box-shadow 0.3s ease",
                   cursor: "pointer",
-                  transition: "transform 0.2s ease, box-shadow 0.3s ease",
                 }}
                 onClick={() => loadGroup(g)}
+                onMouseEnter={(e) =>
+                  (e.currentTarget.style.transform = "translateY(-3px)")
+                }
+                onMouseLeave={(e) =>
+                  (e.currentTarget.style.transform = "translateY(0px)")
+                }
               >
+                {/* Group Icon */}
                 <div className="fs-2 mb-2">💼</div>
-                <h5 className="fw-bold text-primary">{g.name}</h5>
-                <p className="text-muted mb-2">{g.members.length} Members</p>
-                <button className="btn btn-outline-info btn-sm w-100">
-                  View Details
-                </button>
+
+                {/* Group Title */}
+                <h5 className="fw-bold text-primary mb-1">{g.name}</h5>
+                <p className="text-muted small mb-3">
+                  {g.members.length} {g.members.length === 1 ? "Member" : "Members"}
+                </p>
+
+                {/* Buttons */}
+                <div className="d-flex justify-content-center gap-2 mt-auto">
+                  <button
+                    className="btn btn-outline-info btn-sm d-flex align-items-center gap-1 rounded-pill px-3"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      loadGroup(g);
+                    }}
+                  >
+                    <i className="bi bi-eye"></i> View
+                  </button>
+
+                  <button
+                    className="btn btn-outline-danger btn-sm d-flex align-items-center gap-1 rounded-pill px-3"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDeleteGroup(g._id);
+                    }}
+                  >
+                    <i className="bi bi-trash"></i> Delete
+                  </button>
+                </div>
+
+                {/* Decorative background accent */}
+                <div
+                  className="position-absolute"
+                  style={{
+                    bottom: 0,
+                    right: 0,
+                    opacity: 0.05,
+                    fontSize: "4rem",
+                  }}
+                >
+                  💸
+                </div>
               </div>
             </div>
           ))
         )}
       </div>
+
 
       {/* Selected Group */}
       {selectedGroup && (

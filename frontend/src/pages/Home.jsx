@@ -12,7 +12,7 @@ export default function Home() {
     <div className="container py-5">
       {/* Hero Section */}
       <section className="text-center mb-5">
-        <h1 className="fw-bold display-5 mb-3 text-success">Welcome to SplitEase 💸</h1>
+        <h1 className="fw-bold display-5 mb-3 text-success">SplitEase💸- No awkward math, just SplitEase.</h1>
         <p className="text-muted fs-5">
           Manage expenses, split bills, and settle up easily with your friends.
         </p>

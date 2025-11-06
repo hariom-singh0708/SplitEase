@@ -21,7 +21,12 @@ const app = express();
 app.use(helmet());
 app.use(
   cors({
-    origin: process.env.CORS_ORIGIN?.split(",") || "*",
+    origin: [
+      "http://localhost:5173", // local vite
+      "http://127.0.0.1:5173",
+      "https://splitease.vercel.app", // your deployed frontend
+      ...(process.env.CORS_ORIGIN?.split(",") || []),
+    ],
     credentials: true,
   })
 );
