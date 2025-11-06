@@ -41,22 +41,7 @@ export default function Register() {
   return (
     <div
       className="d-flex justify-content-center align-items-center vh-100"
-      style={{
-        background:
-          "linear-gradient(135deg, #20c997, #0dcaf0, #0d6efd)",
-        backgroundSize: "200% 200%",
-        animation: "gradientMove 6s ease infinite",
-      }}
     >
-      <style>
-        {`
-          @keyframes gradientMove {
-            0% { background-position: 0% 50%; }
-            50% { background-position: 100% 50%; }
-            100% { background-position: 0% 50%; }
-          }
-        `}
-      </style>
 
       <div
         className="card border-0 shadow-lg p-4 rounded-4 text-center"

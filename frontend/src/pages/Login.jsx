@@ -28,22 +28,7 @@ export default function Login() {
   return (
     <div
       className="d-flex justify-content-center align-items-center vh-100"
-      style={{
-        background:
-          "linear-gradient(135deg, #0dcaf0, #0d6efd, #20c997)",
-        backgroundSize: "200% 200%",
-        animation: "gradientMove 6s ease infinite",
-      }}
     >
-      <style>
-        {`
-          @keyframes gradientMove {
-            0% { background-position: 0% 50%; }
-            50% { background-position: 100% 50%; }
-            100% { background-position: 0% 50%; }
-          }
-        `}
-      </style>
 
       <div
         className="card border-0 shadow-lg p-4 rounded-4 text-center"
@@ -147,12 +132,6 @@ export default function Login() {
             New here? Create an account →
           </Link>
           <br />
-          <Link
-            to="/forgot-password"
-            className="text-decoration-none text-secondary small"
-          >
-            Forgot Password?
-          </Link>
         </div>
       </div>
     </div>

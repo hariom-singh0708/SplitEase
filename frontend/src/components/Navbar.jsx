@@ -36,7 +36,7 @@ export default function Navbar() {
   return (
     <nav
       className={`navbar navbar-expand-lg navbar-dark fixed-top shadow-sm transition-all ${
-        scrolled ? "bg-dark bg-opacity-75 backdrop-blur" : "bg-transparent"
+        scrolled ? "bg-dark bg-opacity-75 backdrop-blur" : "bg-dark bg-opacity-75"
       }`}
       style={{
         backdropFilter: "blur(10px)",
