@@ -17,7 +17,7 @@ export default function App() {
     <AuthProvider>
       <Router>
         <Navbar />
-        <div className="container mx-auto">
+        <div className="container mx-auto mt-4">
           <Routes>
             {/* Public Routes */}
             <Route path="/login" element={<Login />} />
