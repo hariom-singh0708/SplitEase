@@ -1,16 +1,75 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" class="scroll-smooth">
 
 <head>
   <meta charset="UTF-8" />
-  <link rel="icon"
-    href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>💸</text></svg>" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>SplitEase | Effortless Expense Sharing</title>
+
+  <!-- Primary SEO -->
+  <title>SplitEase — Smart Expense & Money Management Platform</title>
+  <meta name="title" content="SplitEase — Smart Expense & Money Management Platform" />
+  <meta name="description"
+    content="Split expenses, track payments, manage group spending and settle debts effortlessly with SplitEase. Built for modern financial collaboration." />
+  <meta name="keywords"
+    content="expense tracker, split bills, money management, group expenses, debt tracker, MERN app, SplitEase" />
+  <meta name="author" content="SplitEase Team" />
+
+  <!-- Theme -->
+  <meta name="theme-color" content="#0f172a" />
+
+  <!-- Open Graph (Social Sharing) -->
+  <meta property="og:type" content="website" />
+  <meta property="og:title" content="SplitEase — Effortless Expense Sharing" />
+  <meta property="og:description"
+    content="Manage shared expenses, track debts and simplify financial collaboration." />
+  <meta property="og:image" content="/preview.png" />
+  <meta property="og:url" content="https://splitease.app" />
+
+  <!-- Twitter -->
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="SplitEase — Effortless Expense Sharing" />
+  <meta name="twitter:description"
+    content="Track shared expenses and manage payments easily." />
+  <meta name="twitter:image" content="/preview.png" />
+
+  <!-- Favicon -->
+  <link rel="icon" type="image/png" href="/favicon.png" />
+  <link rel="apple-touch-icon" href="/favicon.png" />
+
+  <!-- Performance -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+
+  <!-- Modern Font -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap"
+    rel="stylesheet" />
+
+  <!-- Base Styling -->
+  <style>
+    body {
+      margin: 0;
+      font-family: 'Inter', sans-serif;
+      background: #020617;
+      color: #e2e8f0;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    #root {
+      min-height: 100vh;
+    }
+  </style>
 </head>
 
 <body>
+  <noscript>
+    <strong>
+      SplitEase requires JavaScript to run properly. Please enable JavaScript in your browser.
+    </strong>
+  </noscript>
+
   <div id="root"></div>
+
   <script type="module" src="/src/main.jsx"></script>
 </body>
 

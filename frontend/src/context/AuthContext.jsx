@@ -1,49 +1,106 @@
-import { createContext, useContext, useEffect, useState } from "react";
-import { getMe, loginUser, registerUser, logoutUser } from "../services/authService";
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  useCallback,
+} from "react";
+import {
+  getMe,
+  loginUser,
+  registerUser,
+  logoutUser,
+} from "../services/authService";
 
 const AuthContext = createContext();
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [authError, setAuthError] = useState(null);
 
-  // 🧩 Fetch current user once on app load
-  useEffect(() => {
-    const fetchUser = async () => {
-      try {
-        const res = await getMe();
-        setUser(res.user || null);
-      } catch (err) {
-        console.error("Auth initialization failed:", err);
-        setUser(null);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchUser();
+  /* ================= INIT USER ================= */
+  const initializeAuth = useCallback(async () => {
+    try {
+      setLoading(true);
+      const res = await getMe();
+      setUser(res?.user ?? null);
+    } catch (err) {
+      console.error("Auth initialization failed:", err);
+      setUser(null);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
-  // 🔐 Login
+  useEffect(() => {
+    initializeAuth();
+  }, [initializeAuth]);
+
+  /* ================= LOGIN ================= */
   const login = async (credentials) => {
-    const res = await loginUser(credentials);
-    setUser(res.user || null);
+    try {
+      setAuthError(null);
+      setLoading(true);
+
+      const res = await loginUser(credentials);
+      setUser(res?.user ?? null);
+
+      return { success: true };
+    } catch (err) {
+      const message =
+        err?.response?.data?.message || "Login failed. Please try again.";
+      setAuthError(message);
+      return { success: false, message };
+    } finally {
+      setLoading(false);
+    }
   };
 
-  // 📝 Register
+  /* ================= REGISTER ================= */
   const register = async (data) => {
-    const res = await registerUser(data);
-    setUser(res.user || null);
+    try {
+      setAuthError(null);
+      setLoading(true);
+
+      const res = await registerUser(data);
+      setUser(res?.user ?? null);
+
+      return { success: true };
+    } catch (err) {
+      const message =
+        err?.response?.data?.message || "Registration failed.";
+      setAuthError(message);
+      return { success: false, message };
+    } finally {
+      setLoading(false);
+    }
   };
 
-  // 🚪 Logout
+  /* ================= LOGOUT ================= */
   const logout = async () => {
-    await logoutUser();
-    setUser(null);
+    try {
+      await logoutUser();
+    } catch (err) {
+      console.error("Logout error:", err);
+    } finally {
+      setUser(null);
+    }
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, register, logout, loading }}>
-      {!loading && children}
+    <AuthContext.Provider
+      value={{
+        user,
+        loading,
+        authError,
+        login,
+        register,
+        logout,
+        refreshUser: initializeAuth,
+      }}
+    >
+      {children}
     </AuthContext.Provider>
   );
 };

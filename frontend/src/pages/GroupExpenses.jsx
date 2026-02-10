@@ -8,8 +8,14 @@ import {
   deleteGroup,
 } from "../services/groupService";
 import api from "../services/apiClient";
+import {
+  Users, Plus, Trash2, ArrowRight, Receipt, UserPlus, X,
+  LayoutGrid, Calendar, ChevronRight, Activity, Wallet,
+  ArrowUpRight, Clock, Filter
+} from "lucide-react";
 
 export default function GroupExpenses() {
+  // --- States ---
   const [groups, setGroups] = useState([]);
   const [selectedGroup, setSelectedGroup] = useState(null);
   const [expenses, setExpenses] = useState([]);
@@ -18,70 +24,104 @@ export default function GroupExpenses() {
   const [groupForm, setGroupForm] = useState({ name: "", newMember: "" });
   const [addedMembers, setAddedMembers] = useState([]);
   const [memberStatus, setMemberStatus] = useState("");
-  const [expenseForm, setExpenseForm] = useState({
-    description: "",
-    amount: "",
-    paidBy: "",
-  });
+  const [expenseForm, setExpenseForm] = useState({ description: "", amount: "", paidBy: "" });
   const [sortOption, setSortOption] = useState("date");
+  const [loading, setLoading] = useState(false);
 
-  const fetchGroups = async () => {
-    const data = await getGroups();
-    setGroups(data);
-  };
-
+  // --- Effects ---
   useEffect(() => {
     fetchGroups();
   }, []);
 
-  const handleAddMember = async () => {
-    const identifier = groupForm.newMember?.trim();
-    if (!identifier) return;
-
+  // --- Functions ---
+  const fetchGroups = async () => {
     try {
-      setMemberStatus("🔍 Checking user...");
-      const res = await api.get(`/auth/search?query=${identifier}`);
-      const users = res.data;
-
-      if (users.length === 0) {
-        setMemberStatus(`❌ No user found for "${identifier}"`);
-      } else {
-        const user = users[0];
-        if (addedMembers.some((m) => m._id === user._id)) {
-          setMemberStatus(`⚠️ ${user.name} is already added.`);
-        } else {
-          setAddedMembers([...addedMembers, user]);
-          setMemberStatus(`✅ ${user.name} added successfully!`);
-        }
-      }
-    } catch {
-      setMemberStatus("⚠️ Error verifying user.");
-    } finally {
-      setGroupForm({ ...groupForm, newMember: "" });
-      setTimeout(() => setMemberStatus(""), 3000);
+      const data = await getGroups();
+      setGroups(data);
+    } catch (err) {
+      console.error("Error fetching groups", err);
     }
   };
 
-  const handleRemoveMember = (index) =>
-    setAddedMembers(addedMembers.filter((_, i) => i !== index));
+  const handleAddMember = async () => {
+    const identifier = groupForm.newMember?.trim();
+    if (!identifier) return;
+    try {
+      setMemberStatus("🔍 Searching...");
+      const res = await api.get(`/auth/search?query=${identifier}`);
+      const users = res.data;
+
+      if (users.length > 0) {
+        const user = users[0];
+        if (!addedMembers.some((m) => m._id === user._id)) {
+          setAddedMembers([...addedMembers, user]);
+          setMemberStatus(`✅ Added ${user.name}`);
+        } else {
+          setMemberStatus("⚠️ Already in list");
+        }
+      } else {
+        setMemberStatus("❌ User not found");
+      }
+    } catch (err) {
+      setMemberStatus("⚠️ Connection error");
+    }
+    setGroupForm({ ...groupForm, newMember: "" });
+    setTimeout(() => setMemberStatus(""), 3000);
+  };
 
   const handleCreateGroup = async (e) => {
     e.preventDefault();
-    if (!groupForm.name) return alert("Please enter a group name.");
-    if (addedMembers.length === 0) return alert("Add at least one member.");
-
+    if (!groupForm.name || addedMembers.length === 0) {
+      alert("Please provide a name and at least one member.");
+      return;
+    }
     const memberIdentifiers = addedMembers.map((m) => m.email || m.mobile);
+    try {
+      await createGroup({ name: groupForm.name, membersIdentifiers: memberIdentifiers });
+      setGroupForm({ name: "", newMember: "" });
+      setAddedMembers([]);
+      fetchGroups();
+    } catch (err) {
+      alert("Failed to create group.");
+    }
+  };
 
-    await createGroup({
-      name: groupForm.name,
-      membersIdentifiers: memberIdentifiers,
-    });
+  const loadGroup = async (group) => {
+    setLoading(true);
+    setSelectedGroup(group);
+    try {
+      const exp = await getGroupExpenses(group._id);
+      const settle = await getSettlement(group._id);
+      setExpenses(exp);
+      setSettlements(settle.settlements || []);
 
+      const spent = {};
+      group.members.forEach((m) => (spent[m._id] = 0));
+      exp.forEach((e) => {
+        if (e.paidBy?._id) spent[e.paidBy._id] += Number(e.amount);
+      });
+      setTotals(spent);
+    } catch (err) {
+      console.error("Error loading group details", err);
+    }
+    setLoading(false);
+  };
 
-    setGroupForm({ name: "", newMember: "" });
-    setAddedMembers([]);
-    setMemberStatus("");
-    fetchGroups();
+  const handleAddExpense = async (e) => {
+    e.preventDefault();
+    if (!expenseForm.description || !expenseForm.amount || !expenseForm.paidBy) return;
+    try {
+      await addExpense({
+        groupId: selectedGroup._id,
+        description: expenseForm.description,
+        amount: expenseForm.amount,
+        paidBy: expenseForm.paidBy,
+      });
+      setExpenseForm({ description: "", amount: "", paidBy: "" });
+      loadGroup(selectedGroup);
+    } catch (err) {
+      alert("Error adding expense");
+    }
   };
 
   const handleDeleteGroup = async (groupId) => {
@@ -89,478 +129,436 @@ export default function GroupExpenses() {
     try {
       await deleteGroup(groupId);
       setGroups(groups.filter((g) => g._id !== groupId));
+      if (selectedGroup?._id === groupId) setSelectedGroup(null);
     } catch (err) {
-      if (err.response?.status === 403) {
-        alert("❌ You are not allowed to delete this group.");
-      } else {
-        alert("⚠️ Something went wrong while deleting.");
-      }
-      console.error("❌ Error deleting group:", err);
+      alert("Not authorized to delete this group.");
     }
-  };
-
-
-
-  const loadGroup = async (group) => {
-    setSelectedGroup(group);
-    const exp = await getGroupExpenses(group._id);
-    const settle = await getSettlement(group._id);
-
-    // sort latest first
-    const sortedExp = [...exp].sort(
-      (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
-    );
-
-    setExpenses(sortedExp);
-    setSettlements(settle.settlements);
-
-    const spent = {};
-    group.members.forEach((m) => (spent[m._id] = 0));
-    exp.forEach((e) => {
-      if (e.paidBy?._id) spent[e.paidBy._id] += Number(e.amount);
-    });
-    setTotals(spent);
-  };
-
-  const handleAddExpense = async (e) => {
-    e.preventDefault();
-    await addExpense({
-      groupId: selectedGroup._id,
-      description: expenseForm.description,
-      amount: expenseForm.amount,
-      paidBy: expenseForm.paidBy,
-    });
-    setExpenseForm({ description: "", amount: "", paidBy: "" });
-    loadGroup(selectedGroup);
   };
 
   const formatDate = (date) =>
-    new Date(date).toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-    });
+    new Date(date).toLocaleDateString("en-US", { month: "short", day: "numeric" });
 
   const sortedExpenses = [...expenses].sort((a, b) => {
-    if (sortOption === "name") {
-      return a.paidBy.name.localeCompare(b.paidBy.name);
-    }
-    return new Date(a.createdAt) - new Date(b.createdAt);
+    if (sortOption === "name") return a.paidBy.name.localeCompare(b.paidBy.name);
+    return new Date(b.createdAt) - new Date(a.createdAt);
   });
 
   return (
-    <div
-      className="container py-5"
-      style={{ minHeight: "100vh", background: "#f8fafc" }}
-    >
-      <h2 className="fw-bold text-center mb-4 text-primary">
-        👥 Group Expense Manager
-      </h2>
+    <div className="min-h-screen bg-[#020617] text-slate-300 font-sans pt-28 md:pt-32 pb-24">
 
-      {/* Create Group Section */}
-      {/* 🧩 Create Group Section */}
-      <div
-        className="card border-0 shadow-lg p-4 rounded-4 mb-5"
-        style={{
-          background: "linear-gradient(135deg, #f8fbff, #ffffff)",
-          backdropFilter: "blur(10px)",
-        }}
-      >
-        <h4 className="fw-bold text-primary mb-4 d-flex align-items-center gap-2">
-          <i className="bi bi-people-fill fs-4"></i> Create a New Group
-        </h4>
+      <div className="max-w-7xl mx-auto px-6 mt-12">
 
-        <form
-          onSubmit={handleCreateGroup}
-          className="row g-3 align-items-end justify-content-center"
-        >
-          {/* Group Name */}
-          <div className="col-md-4">
-            <label className="form-label fw-semibold text-secondary">
-              Group Name
-            </label>
-            <div className="input-group">
-              <span className="input-group-text bg-white border-end-0">
-                <i className="bi bi-chat-dots text-primary"></i>
-              </span>
+        {/* --- HERO / CREATE GROUP SECTION --- */}
+        <section className="bg-gradient-to-b from-slate-900/50 to-slate-950 border border-white/5 rounded-[2.5rem] p-8 md:p-12 mb-16 relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-600/5 rounded-full blur-3xl -mr-32 -mt-32"></div>
+
+          <div className="max-w-2xl mb-10">
+            <h1 className="text-4xl md:text-5xl font-bold text-white mb-4 tracking-tight">Create a <span className="text-indigo-500 italic">Financial Circle.</span></h1>
+            <p className="text-slate-500 text-lg">Add members and start tracking shared expenses with pro-level accuracy.</p>
+          </div>
+
+          <form className="grid lg:grid-cols-12 gap-5 items-end">
+            <div className="lg:col-span-4 space-y-2">
+              <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 ml-1">Circle Name</label>
               <input
-                type="text"
-                className="form-control border-start-0"
-                placeholder="e.g. Goa Trip, Roommates"
                 value={groupForm.name}
-                onChange={(e) =>
-                  setGroupForm({ ...groupForm, name: e.target.value })
-                }
-                required
+                onChange={(e) => setGroupForm({ ...groupForm, name: e.target.value })}
+                className="w-full bg-slate-800/30 border border-white/10 rounded-2xl px-5 py-4 focus:ring-2 ring-indigo-500/20 focus:border-indigo-500/50 outline-none transition-all text-white placeholder:text-slate-600"
+                placeholder="Ex: Weekend Getaway"
               />
             </div>
-          </div>
-
-          {/* Add Member Field */}
-          <div className="col-md-5">
-            <label className="form-label fw-semibold text-secondary">
-              Add Member (Email or Phone)
-            </label>
-            <div className="input-group">
-              <span className="input-group-text bg-white border-end-0">
-                <i
-                  className={`bi ${groupForm.newMember.includes("@")
-                    ? "bi-envelope text-info"
-                    : "bi-telephone text-success"
-                    }`}
-                ></i>
-              </span>
-              <input
-                type="text"
-                className="form-control border-start-0"
-                placeholder="Enter email or phone number"
-                value={groupForm.newMember}
-                onChange={(e) =>
-                  setGroupForm({ ...groupForm, newMember: e.target.value })
-                }
-              />
-              <button
-                type="button"
-                className="btn btn-outline-primary fw-bold d-flex align-items-center gap-1"
-                onClick={handleAddMember}
-                disabled={!groupForm.newMember}
-              >
-                <i className="bi bi-person-plus-fill"></i> Add
-              </button>
-            </div>
-
-            {/* Member Add Status */}
-            {memberStatus && (
-              <small
-                className={`mt-2 d-block fw-semibold ${memberStatus.includes("❌") || memberStatus.includes("⚠️")
-                  ? "text-danger"
-                  : "text-success"
-                  }`}
-              >
-                {memberStatus}
-              </small>
-            )}
-          </div>
-
-          {/* Create Button */}
-          <div className="col-md-3 d-grid">
-            <button
-              className="btn btn-info text-white fw-semibold shadow-sm d-flex align-items-center justify-content-center gap-2 rounded-pill"
-              type="submit"
-            >
-              <i className="bi bi-check-circle-fill"></i> Create Group
-            </button>
-          </div>
-        </form>
-
-        {/* Members Added Display */}
-        {addedMembers.length > 0 && (
-          <div className="mt-4">
-            <h6 className="fw-bold text-secondary mb-2 d-flex align-items-center gap-1">
-              <i className="bi bi-person-lines-fill text-info"></i> Members Added
-            </h6>
-            <div className="d-flex flex-wrap gap-2">
-              {addedMembers.map((m, i) => (
-                <div
-                  key={i}
-                  className="badge bg-light border border-info text-dark rounded-pill px-3 py-2 d-flex align-items-center gap-2 shadow-sm"
-                  style={{
-                    transition: "0.2s",
-                  }}
+            <div className="lg:col-span-5 space-y-2">
+              <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 ml-1">Invite Members</label>
+              <div className="relative">
+                <input
+                  value={groupForm.newMember}
+                  onChange={(e) => setGroupForm({ ...groupForm, newMember: e.target.value })}
+                  className="w-full bg-slate-800/30 border border-white/10 rounded-2xl pl-5 pr-14 py-4 focus:ring-2 ring-indigo-500/20 outline-none transition-all text-white placeholder:text-slate-600"
+                  placeholder="Email or Mobile"
+                />
+                <button
+                  type="button"
+                  onClick={handleAddMember}
+                  className="absolute right-2 top-2 bottom-2 aspect-square bg-indigo-600 rounded-xl flex items-center justify-center hover:bg-indigo-500 transition shadow-lg group"
                 >
-                  <div
-                    className="rounded-circle bg-info text-white d-flex align-items-center justify-content-center"
-                    style={{ width: 28, height: 28, fontSize: "0.8rem" }}
-                  >
-                    {m.name[0].toUpperCase()}
-                  </div>
-                  <span className="fw-semibold">{m.name}</span>
-                  <button
-                    type="button"
-                    className="btn btn-sm btn-outline-danger border-0 py-0 px-1"
-                    onClick={() => handleRemoveMember(i)}
-                    title="Remove member"
-                  >
-                    <i className="bi bi-x-circle-fill"></i>
-                  </button>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
-
-
-      {/* 🧩 Groups List */}
-      <h5 className="fw-bold mb-3 text-secondary d-flex align-items-center gap-2">
-        <i className="bi bi-people-fill text-info"></i> Your Groups
-      </h5>
-
-      <div className="row g-4">
-        {groups.length === 0 ? (
-          <p className="text-muted text-center">
-            No groups yet. Create one above!
-          </p>
-        ) : (
-          groups.map((g) => (
-            <div key={g._id} className="col-md-4">
-              <div
-                className={`card border-0 rounded-4 p-4 shadow-sm position-relative h-100 ${selectedGroup?._id === g._id ? "border-primary border-3" : ""
-                  }`}
-                style={{
-                  transition: "transform 0.25s ease, box-shadow 0.3s ease",
-                  cursor: "pointer",
-                }}
-                onClick={() => loadGroup(g)}
-                onMouseEnter={(e) =>
-                  (e.currentTarget.style.transform = "translateY(-3px)")
-                }
-                onMouseLeave={(e) =>
-                  (e.currentTarget.style.transform = "translateY(0px)")
-                }
-              >
-                {/* Group Icon */}
-                <div className="fs-2 mb-2">💼</div>
-
-                {/* Group Title */}
-                <h5 className="fw-bold text-primary mb-1">{g.name}</h5>
-                <p className="text-muted small mb-3">
-                  {g.members.length} {g.members.length === 1 ? "Member" : "Members"}
-                </p>
-
-                {/* Buttons */}
-                <div className="d-flex justify-content-center gap-2 mt-auto">
-                  <button
-                    className="btn btn-outline-info btn-sm d-flex align-items-center gap-1 rounded-pill px-3"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      loadGroup(g);
-                    }}
-                  >
-                    <i className="bi bi-eye"></i> View
-                  </button>
-
-                  <button
-                    className="btn btn-outline-danger btn-sm d-flex align-items-center gap-1 rounded-pill px-3"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleDeleteGroup(g._id);
-                    }}
-                  >
-                    <i className="bi bi-trash"></i> Delete
-                  </button>
-                </div>
-
-                {/* Decorative background accent */}
-                <div
-                  className="position-absolute"
-                  style={{
-                    bottom: 0,
-                    right: 0,
-                    opacity: 0.05,
-                    fontSize: "4rem",
-                  }}
-                >
-                  💸
-                </div>
+                  <UserPlus className="w-5 h-5 text-white group-hover:scale-110 transition" />
+                </button>
               </div>
             </div>
-          ))
-        )}
-      </div>
-
-
-      {/* Selected Group */}
-      {selectedGroup && (
-        <div className="mt-5 card border-0 shadow-lg p-4 rounded-4">
-          <h4 className="fw-bold text-info mb-3">
-            📊 {selectedGroup.name} — Group Details
-          </h4>
-
-          {/* Add Expense */}
-          <form onSubmit={handleAddExpense} className="row g-2 mb-4">
-            <div className="col-md-4">
-              <input
-                type="text"
-                className="form-control"
-                placeholder="Description"
-                value={expenseForm.description}
-                onChange={(e) =>
-                  setExpenseForm({
-                    ...expenseForm,
-                    description: e.target.value,
-                  })
-                }
-                required
-              />
-            </div>
-            <div className="col-md-3">
-              <input
-                type="number"
-                className="form-control"
-                placeholder="Amount ₹"
-                value={expenseForm.amount}
-                onChange={(e) =>
-                  setExpenseForm({ ...expenseForm, amount: e.target.value })
-                }
-                required
-              />
-            </div>
-            <div className="col-md-3">
-              <select
-                className="form-select"
-                value={expenseForm.paidBy}
-                onChange={(e) =>
-                  setExpenseForm({ ...expenseForm, paidBy: e.target.value })
-                }
-                required
+            <div className="lg:col-span-3">
+              <button
+                onClick={handleCreateGroup}
+                className="w-full bg-indigo-600 text-white font-bold py-4 rounded-2xl hover:bg-indigo-500 transition-all shadow-xl shadow-indigo-900/20 active:scale-[0.98]"
               >
-                <option value="">Paid by...</option>
-                {selectedGroup.members.map((m) => (
-                  <option key={m._id} value={m._id}>
-                    {m.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="col-md-2 d-grid">
-              <button className="btn btn-success">Add</button>
+                Create Circle
+              </button>
             </div>
           </form>
 
-          {/* Totals */}
-          <h6 className="fw-bold mb-2 text-center">💰 Total Spent by Each Member</h6>
-          <div className="d-flex flex-wrap justify-content-center gap-4 mb-4">
-            {selectedGroup.members.map((m) => (
-              <div
-                key={m._id}
-                className="card p-3 text-center border-0 shadow-sm rounded-4 bg-light"
-                style={{ width: "200px" }}
-              >
-                <div
-                  className="rounded-circle bg-info text-white mx-auto mb-2 d-flex align-items-center justify-content-center shadow-sm"
-                  style={{ width: 50, height: 50, fontSize: "1.2rem" }}
-                >
-                  {m.name[0].toUpperCase()}
+          {memberStatus && <p className="mt-3 text-xs font-bold text-indigo-400 ml-1 animate-pulse">{memberStatus}</p>}
+
+          {addedMembers.length > 0 && (
+            <div className="flex flex-wrap gap-2 mt-8 pt-8 border-t border-white/5">
+              {addedMembers.map((m, i) => (
+                <div key={i} className="flex items-center gap-2 bg-indigo-500/5 border border-indigo-500/20 px-4 py-2 rounded-xl text-xs font-bold text-indigo-300">
+                  <div className="w-5 h-5 rounded-full bg-indigo-500/20 flex items-center justify-center text-[10px] uppercase">{m.name[0]}</div>
+                  {m.name}
+                  <X className="w-4 h-4 cursor-pointer hover:text-white" onClick={() => setAddedMembers(addedMembers.filter((_, idx) => idx !== i))} />
                 </div>
-                <h6 className="fw-bold mb-1">{m.name}</h6>
-                <span className="text-primary fw-bold fs-6">
-                  ₹{totals[m._id] || 0}
-                </span>
-              </div>
-            ))}
+              ))}
+            </div>
+          )}
+        </section>
+
+        {/* --- GROUPS GRID --- */}
+        <div className="flex items-center justify-between mb-8">
+          <div className="flex items-center gap-3">
+            <LayoutGrid className="text-indigo-500 w-5 h-5" />
+            <h2 className="text-2xl font-bold text-white tracking-tight">Active Circles</h2>
           </div>
-
-
-
-          {/* Settlement */}
-          <h6 className="fw-bold mb-2">💹 Settlement Summary</h6>
-          <div className="row g-3">
-            {settlements.length ? (
-              settlements.map((s, i) => {
-                const from = selectedGroup.members.find(
-                  (m) => m._id === s.from
-                )?.name;
-                const to = selectedGroup.members.find(
-                  (m) => m._id === s.to
-                )?.name;
-                return (
-                  <div key={i} className="col-md-6">
-                    <div
-                      className="card border-0 shadow-sm p-3 rounded-3 d-flex align-items-center justify-content-between"
-                      style={{
-                        background:
-                          "linear-gradient(135deg, #e3f2fd, #ffffff 70%)",
-                      }}
-                    >
-                      <div className="d-flex align-items-center gap-3">
-                        <div
-                          className="bg-danger text-white rounded-circle d-flex align-items-center justify-content-center"
-                          style={{ width: 35, height: 35 }}
-                        >
-                          {from?.[0]}
-                        </div>
-                        <div>
-                          <strong>{from}</strong>
-                          <div className="small text-muted">gives</div>
-                        </div>
-                      </div>
-
-                      <div className="text-success fw-bold fs-5">₹{s.amount}</div>
-
-                      <div className="d-flex align-items-center gap-3">
-                        <div>
-                          <strong>{to}</strong>
-                          <div className="small text-muted">receives</div>
-                        </div>
-                        <div
-                          className="bg-success text-white rounded-circle d-flex align-items-center justify-content-center"
-                          style={{ width: 35, height: 35 }}
-                        >
-                          {to?.[0]}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })
-            ) : (
-              <div className="col-12 text-center text-success fw-bold">
-                ✅ All settled!
-              </div>
-            )}
-          </div>
-
-          {/* Sort Options */}
-          <div className="d-flex justify-content-end mb-2">
-            <select
-              className="form-select w-auto"
-              value={sortOption}
-              onChange={(e) => setSortOption(e.target.value)}
-            >
-              <option value="date">Sort by Date</option>
-              <option value="name">Sort by Name</option>
-            </select>
-          </div>
-
-          {/* Expenses */}
-          <h6 className="fw-bold mb-2">💵 Expenses</h6>
-          <div className="list-group mb-4">
-            {sortedExpenses.length > 0 ? (
-              sortedExpenses.map((e) => (
-                <div
-                  key={e._id}
-                  className="list-group-item border-0 shadow-sm mb-2 rounded-3 p-3"
-                  style={{
-                    background:
-                      "linear-gradient(135deg, #e0f7fa, #ffffff 80%)",
-                  }}
-                >
-                  <div className="d-flex justify-content-between align-items-center">
-                    <div>
-                      <h6 className="fw-bold mb-1 text-primary">
-                        {e.description}
-                      </h6>
-                      <small className="text-muted">
-                        Paid by {e.paidBy.name} • {formatDate(e.createdAt)}
-                      </small>
-                    </div>
-                    <div className="fw-bold text-dark fs-6">
-                      ₹{e.amount}
-                    </div>
-                  </div>
-                </div>
-              ))
-            ) : (
-              <div className="list-group-item text-muted text-center">
-                No expenses yet.
-              </div>
-            )}
-          </div>
-
-
+          <span className="text-xs font-black text-slate-600 uppercase tracking-widest">{groups.length} Groups Total</span>
         </div>
-      )}
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-6 mb-20">
+          {groups.map((g) => (
+            <div
+              key={g._id}
+              onClick={() => loadGroup(g)}
+              className={`relative group p-7 rounded-[2.2rem] border transition-all duration-500 cursor-pointer overflow-hidden
+                  ${selectedGroup?._id === g._id
+                  ? 'bg-indigo-600 border-indigo-500 shadow-2xl shadow-indigo-500/30 -translate-y-2'
+                  : 'bg-slate-900/40 border-white/5 hover:border-white/20 hover:bg-slate-900/80'}`}
+            >
+              {selectedGroup?._id === g._id && (
+                <div className="absolute top-0 right-0 p-4">
+                  <div className="w-2 h-2 bg-white rounded-full animate-ping"></div>
+                </div>
+              )}
+
+              <div className="flex justify-between items-start mb-12">
+                <div className={`p-3 rounded-2xl ${selectedGroup?._id === g._id ? 'bg-white/20' : 'bg-slate-800'}`}>
+                  <Users className={`w-6 h-6 ${selectedGroup?._id === g._id ? 'text-white' : 'text-indigo-400'}`} />
+                </div>
+                <button
+                  onClick={(e) => { e.stopPropagation(); handleDeleteGroup(g._id); }}
+                  className={`p-2 rounded-lg transition-colors ${selectedGroup?._id === g._id ? 'text-indigo-200 hover:bg-white/10' : 'text-slate-600 hover:text-red-400 hover:bg-red-500/10'}`}
+                >
+                  <Trash2 className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div>
+                <h3 className={`text-xl font-bold mb-1 truncate ${selectedGroup?._id === g._id ? 'text-white' : 'text-slate-100'}`}>{g.name}</h3>
+                <div className="flex items-center gap-2">
+                  <p className={`text-xs font-bold uppercase tracking-wider ${selectedGroup?._id === g._id ? 'text-indigo-100' : 'text-slate-500'}`}>
+                    {g.members.length} Members
+                  </p>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* --- SELECTED GROUP DETAIL VIEW --- */}
+        {selectedGroup && (
+          <div className="space-y-10 animate-in fade-in slide-in-from-bottom-10 duration-700">
+
+            {/* Header / Stats Bar */}
+            <div className="bg-slate-900/50 border border-white/5 rounded-[2.5rem] p-8 flex flex-col md:flex-row justify-between items-center gap-6">
+              <div className="flex items-center gap-4">
+                <div className="w-14 h-14 bg-indigo-500/10 rounded-2xl flex items-center justify-center text-2xl">🌍</div>
+                <div>
+                  <h2 className="text-3xl font-black text-white leading-none">{selectedGroup.name}</h2>
+                  <p className="text-slate-500 text-sm mt-2 flex items-center gap-2">
+                    <Clock className="w-3 h-3" /> Updated just now
+                  </p>
+                </div>
+              </div>
+              <div className="flex gap-3">
+                {selectedGroup.members.map(m => (
+                  <div key={m._id} title={m.name} className="w-10 h-10 rounded-full border-2 border-slate-800 bg-slate-900 flex items-center justify-center text-xs font-black text-indigo-400 hover:border-indigo-500 transition-colors cursor-help">
+                    {m.name[0].toUpperCase()}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="grid lg:grid-cols-12 gap-10">
+
+              {/* LEFT COLUMN: SETTLEMENTS & FORM */}
+              <div className="lg:col-span-5 xl:col-span-4 space-y-12">
+
+                {/* ADD EXPENSE (GLASS) */}
+                <div className="bg-slate-900/40 border border-white/5 rounded-[2.5rem] p-8">
+                  <h3 className="text-white font-bold mb-6 flex items-center gap-2">
+                    <Plus className="w-5 h-5 text-indigo-500 bg-indigo-500/10 rounded-full p-1" /> Record Expense
+                  </h3>
+                  <form onSubmit={handleAddExpense} className="space-y-4">
+                    <input
+                      placeholder="Description (Dinner, Uber...)"
+                      className="w-full bg-slate-950 border border-white/5 rounded-2xl px-5 py-4 text-sm focus:border-indigo-500 outline-none transition-all placeholder:text-slate-700"
+                      value={expenseForm.description}
+                      onChange={(e) => setExpenseForm({ ...expenseForm, description: e.target.value })}
+                      required
+                    />
+                    <div className="grid grid-cols-2 gap-3">
+                      <input
+                        placeholder="Amount"
+                        type="number"
+                        className="w-full bg-slate-950 border border-white/5 rounded-2xl px-5 py-4 text-sm focus:border-indigo-500 outline-none transition-all placeholder:text-slate-700 font-bold"
+                        value={expenseForm.amount}
+                        onChange={(e) => setExpenseForm({ ...expenseForm, amount: e.target.value })}
+                        required
+                      />
+                      <select
+                        className="bg-slate-950 border border-white/5 rounded-2xl px-3 text-xs font-bold text-slate-400 outline-none appearance-none cursor-pointer hover:border-white/20 transition-all"
+                        value={expenseForm.paidBy}
+                        onChange={(e) => setExpenseForm({ ...expenseForm, paidBy: e.target.value })}
+                        required
+                      >
+                        <option value="">Paid By</option>
+                        {selectedGroup.members.map(m => <option key={m._id} value={m._id}>{m.name}</option>)}
+                      </select>
+                    </div>
+                    <button className="w-full py-5 bg-white text-slate-950 font-black rounded-2xl hover:bg-indigo-400 hover:text-white transition-all shadow-xl shadow-black/20 mt-2 flex items-center justify-center gap-2">
+                      Push to Ledger <ArrowUpRight className="w-4 h-4" />
+                    </button>
+                  </form>
+                </div>
+
+                {/* SETTLEMENT CARD (REMIUM RESPONSIVE) */}
+                <div className="relative overflow-hidden rounded-[2.5rem] bg-gradient-to-br from-indigo-600 via-indigo-700 to-violet-800 p-6 sm:p-8 shadow-2xl group transition-all duration-500">
+
+                  {/* Dynamic Background Elements */}
+                  <div className="absolute top-[-10%] right-[-10%] w-64 h-64 bg-white/10 rounded-full blur-3xl group-hover:bg-white/20 transition-all duration-700"></div>
+                  <div className="absolute bottom-[-20%] left-[-10%] w-48 h-48 bg-black/20 rounded-full blur-2xl"></div>
+
+                  {/* Header */}
+                  <div className="flex justify-between items-center mb-10 relative z-10">
+                    <div className="space-y-1">
+                      <h3 className="text-white font-black flex items-center gap-3 uppercase tracking-wider text-sm sm:text-base">
+                        <span className="flex items-center justify-center w-8 h-8 bg-white/20 backdrop-blur-lg rounded-xl">
+                          <ArrowRight className="w-4 h-4 text-white" />
+                        </span>
+                        Clearance Plan
+                      </h3>
+                      <p className="text-indigo-200/60 text-[10px] font-bold uppercase tracking-[0.2em] ml-11">Optimization Active</p>
+                    </div>
+                    <div className="p-3 bg-black/20 rounded-2xl backdrop-blur-md border border-white/10">
+                      <Wallet className="text-white w-5 h-5" />
+                    </div>
+                  </div>
+
+                  {/* Settlements List */}
+                  <div className="space-y-3 relative z-10">
+                    {settlements.length > 0 ? (
+                      settlements.map((s, i) => (
+                        <div
+                          key={i}
+                          className="group/item relative bg-white/5 backdrop-blur-xl border border-white/10 rounded-3xl p-4 sm:p-5 flex items-center justify-between transition-all duration-300 hover:bg-white/10 hover:border-white/20"
+                        >
+                          {/* Debtor */}
+                          <div className="flex flex-col min-w-0 flex-1">
+                            <span className="text-[9px] font-black text-indigo-300 uppercase tracking-widest mb-1 opacity-70">To Pay</span>
+                            <span className="font-bold text-white text-xs sm:text-sm truncate pr-2">
+                              {selectedGroup.members.find(m => m._id === s.from)?.name}
+                            </span>
+                          </div>
+
+                          {/* Amount Bridge */}
+                          <div className="flex flex-col items-center shrink-0 px-4">
+                            <div className="px-3 py-1 rounded-full bg-white text-indigo-700 text-xs sm:text-sm font-black shadow-xl shadow-indigo-900/20 mb-2">
+                              ₹{s.amount.toLocaleString('en-IN')}
+                            </div>
+                            <div className="relative w-12 h-px bg-gradient-to-r from-transparent via-white/40 to-transparent">
+                              <ArrowRight className="absolute -top-[5px] left-1/2 -translate-x-1/2 w-3 h-3 text-white/60 group-hover/item:left-[70%] transition-all duration-500" />
+                            </div>
+                          </div>
+
+                          {/* Receiver */}
+                          <div className="flex flex-col text-right min-w-0 flex-1">
+                            <span className="text-[9px] font-black text-emerald-300 uppercase tracking-widest mb-1 opacity-70">To Receive</span>
+                            <span className="font-bold text-white text-xs sm:text-sm truncate pl-2">
+                              {selectedGroup.members.find(m => m._id === s.to)?.name}
+                            </span>
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      /* Empty State */
+                      <div className="flex flex-col items-center justify-center py-12 px-6 bg-black/10 rounded-[2rem] border border-dashed border-white/20">
+                        <div className="w-12 h-12 bg-white/10 rounded-full flex items-center justify-center mb-4">
+                          <span className="text-xl">✨</span>
+                        </div>
+                        <p className="text-white font-bold text-sm tracking-tight text-center">All Debts Settled</p>
+                        <p className="text-indigo-200/40 text-[10px] uppercase font-black tracking-widest mt-1">Perfect Balance Achieved</p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Decorative Label */}
+                  <div className="absolute top-4 right-8 text-[40px] font-black text-white/[0.03] italic pointer-events-none select-none">
+                    SETTLE
+                  </div>
+                </div>
+
+                {/* Summary Totals Section */}
+                <div className="mt-12 px-2">
+                  {/* Section Header */}
+                  <div className="flex items-center gap-4 mb-8">
+                    <div className="h-px flex-grow bg-gradient-to-r from-transparent via-indigo-500/20 to-transparent"></div>
+                    <h5 className="text-[10px] font-black uppercase tracking-[0.4em] text-slate-400 whitespace-nowrap">
+                      Individual Contributions
+                    </h5>
+                    <div className="h-px flex-grow bg-gradient-to-r from-transparent via-indigo-500/20 to-transparent"></div>
+                  </div>
+
+                  {/* Responsive Grid: 1 col on mobile, 2 on tablet, 4 on desktop */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-4 sm:gap-6">
+                    {selectedGroup.members.map((m) => {
+                      const amount = totals[m._id] || 0;
+                      const totalGroupSpent = Object.values(totals).reduce((a, b) => a + b, 0) || 1;
+                      const percentage = Math.min((amount / totalGroupSpent) * 100, 100);
+
+                      return (
+                        <div
+                          key={m._id}
+                          className="group relative overflow-hidden rounded-[2.5rem] bg-slate-900/40 border border-white/5 p-6 transition-all duration-500 hover:bg-slate-900/60 hover:border-indigo-500/30 shadow-2xl"
+                        >
+                          {/* Animated Glow Effect on Hover */}
+                          <div className="absolute -inset-px bg-gradient-to-br from-indigo-500/10 via-transparent to-purple-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-500 rounded-[2.5rem]"></div>
+
+                          <div className="relative z-10 flex flex-col h-full justify-between">
+                            <div className="flex items-center justify-between mb-4">
+                              <div className="flex items-center gap-3">
+                                {/* Avatar with Ring */}
+                                <div className="relative">
+                                  <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-indigo-600 to-purple-600 flex items-center justify-center text-white font-black text-sm shadow-lg ring-2 ring-white/10">
+                                    {m.name[0].toUpperCase()}
+                                  </div>
+                                  {percentage > 50 && (
+                                    <span className="absolute -top-1 -right-1 flex h-3 w-3">
+                                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
+                                      <span className="relative inline-flex rounded-full h-3 w-3 bg-indigo-500"></span>
+                                    </span>
+                                  )}
+                                </div>
+                                <span className="text-xs font-bold text-slate-300 uppercase tracking-widest truncate max-w-[100px]">
+                                  {m.name}
+                                </span>
+                              </div>
+
+                              <div className="text-[10px] font-black text-indigo-400 bg-indigo-500/10 px-2 py-1 rounded-lg">
+                                {percentage.toFixed(0)}%
+                              </div>
+                            </div>
+
+                            <div className="space-y-4">
+                              <div>
+                                <p className="text-[10px] font-black text-slate-500 uppercase tracking-tighter mb-1">Total Paid</p>
+                                <h3 className="text-2xl font-black text-white tracking-tighter">
+                                  ₹{amount.toLocaleString('en-IN')}
+                                </h3>
+                              </div>
+
+                              {/* Responsive Progress Bar */}
+                              <div className="relative w-full h-1.5 bg-white/5 rounded-full overflow-hidden">
+                                <div
+                                  className="absolute top-0 left-0 h-full bg-gradient-to-r from-indigo-500 to-purple-500 transition-all duration-1000 ease-out"
+                                  style={{ width: `${percentage}%` }}
+                                ></div>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Large decorative letter in background */}
+                          <span className="absolute -bottom-4 -right-2 text-8xl font-black text-white/[0.02] pointer-events-none group-hover:text-indigo-500/[0.05] transition-colors duration-500">
+                            {m.name[0]}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+
+              </div>
+
+              {/* RIGHT COLUMN: TRANSACTION GRID */}
+              <div className="lg:col-span-8">
+
+                {/* Header for Logs */}
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-8 gap-4">
+                  <div>
+                    <h3 className="text-3xl font-black text-white tracking-tight">Financial Logs</h3>
+                    <p className="text-slate-500 text-sm mt-1">Dual-column transaction stream</p>
+                  </div>
+                  <div className="flex gap-2 bg-slate-900/80 p-1.5 rounded-2xl border border-white/5 backdrop-blur-sm">
+                    <button
+                      onClick={() => setSortOption('date')}
+                      className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition ${sortOption === 'date' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20' : 'text-slate-500 hover:text-slate-300'}`}
+                    >
+                      Recent
+                    </button>
+                    <button
+                      onClick={() => setSortOption('name')}
+                      className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition ${sortOption === 'name' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20' : 'text-slate-500 hover:text-slate-300'}`}
+                    >
+                      Member
+                    </button>
+                    <div className="px-2 flex items-center"><Filter className="w-3 h-3 text-slate-700" /></div>
+                  </div>
+                </div>
+
+                {/* 2-COLUMN TRANSACTION GRID */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                  {sortedExpenses.length > 0 ? sortedExpenses.map((e) => (
+                    <div
+                      key={e._id}
+                      className="bg-slate-900/40 border border-white/5 p-6 rounded-[2rem] hover:bg-slate-800/40 hover:border-indigo-500/40 transition-all group relative overflow-hidden"
+                    >
+                      <div className="absolute top-0 right-0 w-20 h-20 bg-gradient-to-bl from-indigo-500/5 to-transparent rounded-bl-[2rem]"></div>
+
+                      <div className="flex justify-between items-start mb-6">
+                        <div className="w-12 h-12 bg-slate-950 rounded-2xl flex items-center justify-center shadow-inner group-hover:bg-indigo-600/20 transition-colors">
+                          <Receipt className="w-5 h-5 text-indigo-500" />
+                        </div>
+                        <div className="text-right">
+                          <span className="text-2xl font-black text-white tracking-tighter">₹{e.amount}</span>
+                          <p className="text-[10px] font-black text-slate-600 uppercase tracking-widest mt-1 italic">Authorized</p>
+                        </div>
+                      </div>
+
+                      <h4 className="font-bold text-slate-100 text-lg leading-snug line-clamp-1 mb-4">{e.description}</h4>
+
+                      <div className="flex items-center justify-between pt-4 border-t border-white/5">
+                        <div className="flex items-center gap-2">
+                          <div className="w-7 h-7 bg-indigo-500/20 rounded-lg flex items-center justify-center text-[10px] font-black text-indigo-400 ring-1 ring-indigo-500/30">
+                            {e.paidBy.name[0].toUpperCase()}
+                          </div>
+                          <span className="text-xs font-bold text-slate-400 truncate w-24">
+                            {e.paidBy.name}
+                          </span>
+                        </div>
+                        <span className="text-[10px] text-slate-600 font-black uppercase tracking-tighter flex items-center gap-1">
+                          <Calendar className="w-3 h-3" /> {formatDate(e.createdAt)}
+                        </span>
+                      </div>
+                    </div>
+                  )) : (
+                    <div className="col-span-full py-24 text-center bg-slate-900/20 border-2 border-dashed border-white/5 rounded-[3rem]">
+                      <div className="w-20 h-20 bg-slate-800/50 rounded-full flex items-center justify-center mx-auto mb-6 text-3xl">📭</div>
+                      <h4 className="text-xl font-bold text-white mb-2">The ledger is empty</h4>
+                      <p className="text-slate-500 text-sm max-w-xs mx-auto">Start by adding your first group expense above to see the magic happen.</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

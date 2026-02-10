@@ -9,7 +9,9 @@ import {
   Eye,
   EyeOff,
   UserPlus,
+  ShieldCheck,
 } from "lucide-react";
+import { motion } from "framer-motion";
 
 export default function Register() {
   const [form, setForm] = useState({
@@ -18,156 +20,194 @@ export default function Register() {
     mobile: "",
     password: "",
   });
-  const [error, setError] = useState("");
+
   const [showPassword, setShowPassword] = useState(false);
+  const [agree, setAgree] = useState(false);
+  const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+
   const { register } = useAuth();
   const navigate = useNavigate();
 
+  const passwordStrength = getStrength(form.password);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!agree) return setError("Please accept Terms & Conditions.");
+
     setLoading(true);
     setError("");
-    try {
-      await register(form);
+
+    const res = await register(form);
+
+    if (res.success) {
       navigate("/");
-    } catch (err) {
-      setError(err.response?.data?.message || "⚠️ Registration failed.");
-    } finally {
-      setLoading(false);
+    } else {
+      setError(res.message);
     }
+
+    setLoading(false);
   };
 
   return (
-    <div
-      className="d-flex justify-content-center align-items-center vh-100"
-    >
+    <div className="relative min-h-screen bg-slate-950 flex items-center justify-center px-6 overflow-hidden">
 
-      <div
-        className="card border-0 shadow-lg p-4 rounded-4 text-center"
-        style={{
-          width: "23rem",
-          backdropFilter: "blur(12px)",
-          background: "rgba(255, 255, 255, 0.9)",
-          boxShadow: "0 8px 25px rgba(0,0,0,0.15)",
-          transition: "all 0.3s",
-        }}
+      {/* Background Glow */}
+      <div className="absolute -top-40 -left-40 w-[450px] h-[450px] bg-indigo-600 blur-[150px] opacity-20 rounded-full"></div>
+      <div className="absolute bottom-0 right-0 w-[400px] h-[400px] bg-pink-600 blur-[150px] opacity-20 rounded-full"></div>
+
+      <motion.div
+        initial={{ opacity: 0, y: 50 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.6 }}
+        className="relative w-full max-w-lg bg-slate-900/60 backdrop-blur-xl border border-slate-800 rounded-3xl p-8 shadow-2xl"
       >
-        <h3 className="fw-bold text-primary mb-3 d-flex justify-content-center align-items-center gap-2">
-          <UserPlus size={24} /> Create Account
-        </h3>
-        <p className="text-muted small mb-3">
-          Join <strong>SplitEase</strong> and start tracking expenses easily.
-        </p>
+        <div className="text-center mb-8">
+          <h2 className="text-3xl font-bold flex items-center justify-center gap-2 text-white">
+            <UserPlus size={26} className="text-indigo-400" />
+            Create Account
+          </h2>
+          <p className="text-slate-400 mt-2 text-sm">
+            Join <span className="text-white font-semibold">SplitEase</span> and manage money smarter.
+          </p>
+        </div>
 
         {error && (
-          <div className="alert alert-danger py-2 small text-start">{error}</div>
+          <div className="mb-4 p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 text-sm">
+            {error}
+          </div>
         )}
 
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={handleSubmit} className="space-y-5">
+
           {/* Name */}
-          <div className="input-group mb-3">
-            <span className="input-group-text bg-white border-end-0">
-              <User className="text-secondary" size={18} />
-            </span>
-            <input
-              type="text"
-              className="form-control border-start-0"
-              placeholder="Full Name"
-              value={form.name}
-              onChange={(e) => setForm({ ...form, name: e.target.value })}
-              required
-            />
-          </div>
+          <InputField
+            icon={<User size={18} />}
+            placeholder="Full Name"
+            value={form.name}
+            onChange={(val) => setForm({ ...form, name: val })}
+          />
 
           {/* Email */}
-          <div className="input-group mb-3">
-            <span className="input-group-text bg-white border-end-0">
-              <Mail className="text-secondary" size={18} />
-            </span>
-            <input
-              type="email"
-              className="form-control border-start-0"
-              placeholder="Email"
-              value={form.email}
-              onChange={(e) => setForm({ ...form, email: e.target.value })}
-              required
-            />
-          </div>
+          <InputField
+            icon={<Mail size={18} />}
+            placeholder="Email Address"
+            type="email"
+            value={form.email}
+            onChange={(val) => setForm({ ...form, email: val })}
+          />
 
           {/* Mobile */}
-          <div className="input-group mb-3">
-            <span className="input-group-text bg-white border-end-0">
-              <Phone className="text-secondary" size={18} />
-            </span>
-            <input
-              type="text"
-              className="form-control border-start-0"
-              placeholder="Mobile (optional)"
-              value={form.mobile}
-              onChange={(e) => setForm({ ...form, mobile: e.target.value })}
-            />
-          </div>
+          <InputField
+            icon={<Phone size={18} />}
+            placeholder="Mobile Number"
+            value={form.mobile}
+            onChange={(val) => setForm({ ...form, mobile: val })}
+          />
 
           {/* Password */}
-          <div className="input-group mb-4">
-            <span className="input-group-text bg-white border-end-0">
-              <Lock className="text-secondary" size={18} />
-            </span>
-            <input
-              type={showPassword ? "text" : "password"}
-              className="form-control border-start-0 border-end-0"
-              placeholder="Password"
-              value={form.password}
-              onChange={(e) => setForm({ ...form, password: e.target.value })}
-              required
-            />
-            <span
-              className="input-group-text bg-white border-start-0"
-              style={{ cursor: "pointer" }}
-              onClick={() => setShowPassword(!showPassword)}
-            >
-              {showPassword ? (
-                <EyeOff className="text-secondary" size={18} />
-              ) : (
-                <Eye className="text-secondary" size={18} />
-              )}
-            </span>
+          <div>
+            <div className="flex items-center bg-slate-800 rounded-xl px-4 border border-slate-700 focus-within:border-indigo-500 transition">
+              <Lock size={18} className="text-slate-400" />
+              <input
+                type={showPassword ? "text" : "password"}
+                placeholder="Password"
+                value={form.password}
+                onChange={(e) =>
+                  setForm({ ...form, password: e.target.value })
+                }
+                className="bg-transparent w-full p-3 outline-none text-white"
+                required
+              />
+              <button type="button" onClick={() => setShowPassword(!showPassword)}>
+                {showPassword ? (
+                  <EyeOff size={18} className="text-slate-400" />
+                ) : (
+                  <Eye size={18} className="text-slate-400" />
+                )}
+              </button>
+            </div>
+
+            {/* Strength Indicator */}
+            {form.password && (
+              <div className="mt-2">
+                <div className="h-2 bg-slate-700 rounded-full overflow-hidden">
+                  <div
+                    className={`h-full ${passwordStrength.color}`}
+                    style={{ width: passwordStrength.width }}
+                  ></div>
+                </div>
+                <p className="text-xs text-slate-400 mt-1">
+                  Strength: {passwordStrength.label}
+                </p>
+              </div>
+            )}
           </div>
 
-          {/* Register Button */}
+          {/* Terms */}
+          <div className="flex items-center gap-2 text-sm text-slate-400">
+            <input
+              type="checkbox"
+              checked={agree}
+              onChange={() => setAgree(!agree)}
+              className="accent-indigo-500"
+            />
+            I agree to the Terms & Conditions
+          </div>
+
+          {/* Submit */}
           <button
-            className="btn btn-success w-100 fw-semibold py-2 d-flex justify-content-center align-items-center gap-2 rounded-pill shadow-sm"
-            type="submit"
             disabled={loading}
-            style={{
-              background: "linear-gradient(90deg, #20c997, #0dcaf0)",
-              border: "none",
-            }}
+            className="w-full py-3 rounded-xl bg-gradient-to-r from-indigo-500 to-purple-600 font-semibold hover:scale-105 transition shadow-lg shadow-indigo-500/30 flex justify-center items-center gap-2"
           >
             {loading ? (
-              <div
-                className="spinner-border spinner-border-sm text-light"
-                role="status"
-              ></div>
+              <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
             ) : (
               <>
-                <UserPlus size={18} /> Register
+                <ShieldCheck size={18} />
+                Create Account
               </>
             )}
           </button>
         </form>
 
-        {/* Footer Links */}
-        <div className="mt-3 text-center">
-          <Link
-            to="/login"
-            className="text-decoration-none text-primary fw-semibold small"
-          >
-            Already have an account? Login →
+        <div className="mt-6 text-center text-sm text-slate-400">
+          Already have an account?{" "}
+          <Link to="/login" className="text-indigo-400 font-semibold hover:underline">
+            Login
           </Link>
         </div>
-      </div>
+      </motion.div>
     </div>
   );
+}
+
+/* ================= COMPONENTS ================= */
+
+function InputField({ icon, placeholder, type = "text", value, onChange }) {
+  return (
+    <div className="flex items-center bg-slate-800 rounded-xl px-4 border border-slate-700 focus-within:border-indigo-500 transition">
+      <span className="text-slate-400">{icon}</span>
+      <input
+        type={type}
+        placeholder={placeholder}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="bg-transparent w-full p-3 outline-none text-white"
+        required
+      />
+    </div>
+  );
+}
+
+/* ================= PASSWORD STRENGTH ================= */
+
+function getStrength(password) {
+  if (password.length < 6)
+    return { width: "25%", color: "bg-red-500", label: "Weak" };
+  if (password.length < 10)
+    return { width: "50%", color: "bg-yellow-500", label: "Medium" };
+  if (/[A-Z]/.test(password) && /\d/.test(password))
+    return { width: "100%", color: "bg-green-500", label: "Strong" };
+  return { width: "75%", color: "bg-blue-500", label: "Good" };
 }
