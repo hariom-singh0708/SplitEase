@@ -4,6 +4,11 @@ import App from "./App.jsx";
 import "bootstrap/dist/css/bootstrap.min.css";
 import "bootstrap-icons/font/bootstrap-icons.css";
 
+// ✅ PWA Service Worker Register
+import { registerSW } from "virtual:pwa-register";
+
+registerSW({ immediate: true });
+
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
     <App />
