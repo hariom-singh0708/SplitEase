@@ -20,18 +20,20 @@ export const AuthProvider = ({ children }) => {
   const [authError, setAuthError] = useState(null);
 
   /* ================= INIT USER ================= */
-  const initializeAuth = useCallback(async () => {
-    try {
-      setLoading(true);
-      const res = await getMe();
-      setUser(res?.user ?? null);
-    } catch (err) {
-      console.error("Auth initialization failed:", err);
+const initializeAuth = useCallback(async () => {
+  try {
+    setLoading(true);
+    const res = await getMe();
+    setUser(res?.user ?? null);
+  } catch (err) {
+    if (err?.response?.status === 401) {
+      // refresh interceptor will try automatically
       setUser(null);
-    } finally {
-      setLoading(false);
     }
-  }, []);
+  } finally {
+    setLoading(false);
+  }
+}, []);
 
   useEffect(() => {
     initializeAuth();

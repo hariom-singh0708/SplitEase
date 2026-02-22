@@ -1,40 +1,93 @@
 import jwt from "jsonwebtoken";
 
+/**
+ * Helper to ensure required env vars exist
+ */
+const requireEnv = (key) => {
+  const value = process.env[key];
+  if (!value) {
+    throw new Error(`Missing required environment variable: ${key}`);
+  }
+  return value;
+};
+
+/**
+ * Convert string (ms) to number safely
+ */
+const toNumber = (value, key) => {
+  const num = Number(value);
+  if (isNaN(num)) {
+    throw new Error(`Environment variable ${key} must be a number`);
+  }
+  return num;
+};
+
+/**
+ * Access Token
+ */
 export const signAccessToken = (userId) => {
-  return jwt.sign({ id: userId }, process.env.JWT_ACCESS_SECRET, {
-    expiresIn: process.env.JWT_ACCESS_EXPIRES || "15m",
-  });
+  return jwt.sign(
+    { id: userId },
+    requireEnv("JWT_ACCESS_SECRET"),
+    {
+      expiresIn: requireEnv("JWT_ACCESS_EXPIRES"),
+    }
+  );
 };
 
+/**
+ * Refresh Token
+ */
 export const signRefreshToken = (userId) => {
-  return jwt.sign({ id: userId }, process.env.JWT_REFRESH_SECRET, {
-    expiresIn: process.env.JWT_REFRESH_EXPIRES || "7d",
-  });
+  return jwt.sign(
+    { id: userId },
+    requireEnv("JWT_REFRESH_SECRET"),
+    {
+      expiresIn: requireEnv("JWT_REFRESH_EXPIRES"),
+    }
+  );
 };
 
+/**
+ * Set Cookies
+ */
 export const setAuthCookies = (res, accessToken, refreshToken) => {
-  const isProd = process.env.NODE_ENV === "production";
-  const secure = process.env.COOKIE_SECURE === "true" || isProd;
+  const secure = requireEnv("COOKIE_SECURE") === "true";
+  const sameSite = requireEnv("COOKIE_SAMESITE");
+  const accessMaxAge = toNumber(requireEnv("COOKIE_ACCESS_MAXAGE"), "COOKIE_ACCESS_MAXAGE");
+  const refreshMaxAge = toNumber(requireEnv("COOKIE_REFRESH_MAXAGE"), "COOKIE_REFRESH_MAXAGE");
 
   res.cookie("accessToken", accessToken, {
     httpOnly: true,
     secure,
-    sameSite: secure ? "none" : "lax",
-    maxAge: 1000 * 60 * 60, // 1 hour (cookie can outlive token slightly)
+    sameSite,
+    maxAge: accessMaxAge,
   });
 
   res.cookie("refreshToken", refreshToken, {
     httpOnly: true,
     secure,
-    sameSite: secure ? "none" : "lax",
-    maxAge: 1000 * 60 * 60 * 24 * 7, // 7 days
+    sameSite,
+    maxAge: refreshMaxAge,
   });
 };
 
+/**
+ * Clear Cookies
+ */
 export const clearAuthCookies = (res) => {
-  const isProd = process.env.NODE_ENV === "production";
-  const secure = process.env.COOKIE_SECURE === "true" || isProd;
+  const secure = requireEnv("COOKIE_SECURE") === "true";
+  const sameSite = requireEnv("COOKIE_SAMESITE");
 
-  res.clearCookie("accessToken", { httpOnly: true, secure, sameSite: secure ? "none" : "lax" });
-  res.clearCookie("refreshToken", { httpOnly: true, secure, sameSite: secure ? "none" : "lax" });
+  res.clearCookie("accessToken", {
+    httpOnly: true,
+    secure,
+    sameSite,
+  });
+
+  res.clearCookie("refreshToken", {
+    httpOnly: true,
+    secure,
+    sameSite,
+  });
 };
