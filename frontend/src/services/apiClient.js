@@ -17,19 +17,19 @@ api.interceptors.response.use(
   async (error) => {
     const original = error.config;
 
-    // Only handle 401 errors once per request
     if (error.response?.status === 401 && !original._retry) {
-      const excluded = ["/auth/login", "/auth/register", "/auth/logout", "/auth/refresh", "/auth/me"];
+      const excluded = ["/auth/login", "/auth/register", "/auth/logout", "/auth/refresh"];
+
       if (excluded.some((endpoint) => original.url.includes(endpoint))) {
         return Promise.reject(error);
       }
 
       original._retry = true;
+
       try {
-        await axios.post(`${baseURL}/auth/refresh`, {}, { withCredentials: true });
-        return api(original); // retry original request
+        await api.post("/auth/refresh");
+        return api(original);
       } catch {
-        console.warn("Session expired, redirecting to login...");
         if (window.location.pathname !== "/login") {
           window.location.href = "/login";
         }
